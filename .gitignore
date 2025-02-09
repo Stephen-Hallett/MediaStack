@@ -1,3 +1,4 @@
 Data/
 Media/
 docker-compose.env
+.DS_Store

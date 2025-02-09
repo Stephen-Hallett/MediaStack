@@ -391,3 +391,105 @@ services:
       - no-new-privileges:true
 
     network_mode: none
+
+# ========================== External Connection ==========================
+  authelia:
+    image: ghcr.io/authelia/authelia:latest
+    container_name: authelia
+    volumes:
+      - ${FOLDER_FOR_DATA:?err}/authelia:/config
+    environment:
+      - PUID=${PUID:?err}
+      - PGID=${PGID:?err}
+      - UMASK=${UMASK:?err}
+      - TZ=${TIMEZONE:?err}
+    restart: unless-stopped
+# NOTE: Authelia MUST NOT connect to the Gluetun VPN container
+    networks:
+      - mediastack
+
+  ddns-updater:
+    image: qmcgaw/ddns-updater:latest
+    container_name: ddns-updater
+    restart: always
+    user: ${PUID:?err}:${PGID:?err}
+    volumes:
+      - ${FOLDER_FOR_DATA:?err}/ddns-updater:/updater/data
+    ports:
+      - ${WEBUI_PORT_DDNS_UPDATER:?err}:${WEBUI_PORT_DDNS_UPDATER:?err}/tcp
+    environment:
+#      - PUID=${PUID:?err}    # Not used in DDNS-Updater - see above:   user: ${PUID:?err}:${PGID:?err}
+#      - PGID=${PGID:?err}    # Not used in DDNS-Updater - see above:   user: ${PUID:?err}:${PGID:?err}
+      - UMASK=${UMASK:?err}
+      - TZ=${TIMEZONE:?err}
+      - CONFIG=
+      - PERIOD=5m
+      - UPDATE_COOLDOWN_PERIOD=5m
+      - PUBLICIP_FETCHERS=all
+      - PUBLICIP_HTTP_PROVIDERS=all
+      - PUBLICIPV4_HTTP_PROVIDERS=all
+      - PUBLICIPV6_HTTP_PROVIDERS=all
+      - PUBLICIP_DNS_PROVIDERS=all
+      - PUBLICIP_DNS_TIMEOUT=3s
+      - HTTP_TIMEOUT=10s
+      # Web UI
+      - LISTENING_ADDRESS=:${WEBUI_PORT_DDNS_UPDATER:?err}
+      - ROOT_URL=/
+      # Backup
+      - BACKUP_PERIOD=0 # 0 to disable
+      - BACKUP_DIRECTORY=/updater/data
+      # Other
+      - LOG_LEVEL=info
+      - LOG_CALLER=hidden
+      - SHOUTRRR_ADDRESSES=
+# NOTE: DDNS-Update MUST NOT connect to the Gluetun VPN container
+    networks:
+      - mediastack
+
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:latest
+    container_name: heimdall
+    restart: unless-stopped
+    volumes:
+      - ${FOLDER_FOR_DATA:?err}/heimdall:/config
+    environment:
+      - PUID=${PUID:?err}
+      - PGID=${PGID:?err}
+      - UMASK=${UMASK:?err}
+      - TZ=${TIMEZONE:?err}
+    ports:
+      - "${WEBUI_PORT_HEIMDALL:?err}:80"
+# NOTE: Heimdall MUST NOT connect to the Gluetun VPN container
+    networks:
+      - mediastack
+
+  swag:
+    image: lscr.io/linuxserver/swag:latest
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    volumes:
+      - ${FOLDER_FOR_DATA:?err}/swag:/config
+    ports:
+      - ${REVERSE_PROXY_PORT_HTTP:?err}:80
+      - ${REVERSE_PROXY_PORT_HTTPS:?err}:443
+    environment:
+      - PUID=${PUID:?err}
+      - PGID=${PGID:?err}
+      - UMASK=${UMASK:?err}
+      - TZ=${TIMEZONE:?err}
+      - URL=${DOMAINNAME:?err}
+      - SUBDOMAINS=${SUBDOMAINS}
+      - VALIDATION=${VALIDATION:?err}
+      - CERTPROVIDER=${CERTPROVIDER}
+      - DNSPLUGIN=${DNSPLUGIN}
+      - PROPAGATION=${PROPAGATION}
+      - DUCKDNSTOKEN=${DUCKDNSTOKEN}
+      - EMAIL=${EMAIL}
+      - ONLY_SUBDOMAINS=${ONLY_SUBDOMAINS}
+      - EXTRA_DOMAINS=${EXTRA_DOMAINS}
+      - STAGING=${STAGING}
+# NOTE: SWAG MUST NOT connect to the Gluetun VPN container
+    networks:
+      - mediastack
